@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "348494874713",
+    "firebase_url": "https://nihonzenkokubasyoatequiz.firebaseio.com",
+    "project_id": "nihonzenkokubasyoatequiz",
+    "storage_bucket": "nihonzenkokubasyoatequiz.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:348494874713:android:0ae8d77a2bde25ca798948",
+        "android_client_info": {
+          "package_name": "com.greencloud.NihonZenkokuBasyoAteQuiz"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "348494874713-ackgvki121g2moqu512ri4hmnrrjuima.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBGIqbfAHiYWdrN1FaaPs1w784d7gPzUSU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "348494874713-ackgvki121g2moqu512ri4hmnrrjuima.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "348494874713-mrmrt0n7lqe3dl3v9rjoso33lp2fd9v1.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.greencloud.NihonZenkokuBasyoAteQuiz"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

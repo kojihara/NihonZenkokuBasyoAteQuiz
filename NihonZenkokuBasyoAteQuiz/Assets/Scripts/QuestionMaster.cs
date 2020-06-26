@@ -1,0 +1,206 @@
+﻿using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.IO;
+using System.Text;
+using UnityEngine;
+using UnityEngine.Networking;
+
+/// <summary>
+/// 問題一覧
+/// </summary>
+public class QuestionMaster
+{
+    //StreamingAssets内のファイル
+    private static readonly string assetBundleDirectory = Application.streamingAssetsPath;
+    private const string MasterGenreFileName = "genre.csv"; // ジャンル設定
+    private const string MasterQuestionFileName = "question.csv"; // 問題設定
+    private const string AssetBundleUrl =
+        "https://kojihara.sakura.ne.jp/nihon_zenkoku_basyo_ate_quiz/android/master_asset_bundle";
+
+    private Dictionary<string, List<Question>> genreQuestion = new Dictionary<string, List<Question>>();
+
+    private static QuestionMaster instance = new QuestionMaster();
+    public static QuestionMaster Instance()
+    {
+        return instance;
+    }
+
+    private QuestionMaster()
+    {
+    }
+
+    public void InitializeMaster(string csv)
+    {
+        List<string[]> csvLines = new List<string[]>(); // CSVの中身を入れるリスト;
+        string[] lines = csv.Split(new string[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries);
+        for(int i = 0;i < lines.Length; i++)
+        {
+            if (i == 0)
+            {
+                // 1行目はヘッダ
+                continue;
+            }
+            csvLines.Add(lines[i].Split(',')); // , 区切りでリストに追加
+        }
+
+        foreach (string[] rows in csvLines)
+        {
+            try
+            {
+                //Debug.Log(rows[0] + "|" + rows[1] + "|" + rows[2] + "|" + rows[3] + "|" + rows[4]);
+                string genre = rows[0];
+                string name = rows[1];
+                float latitude = float.Parse(rows[2]);
+                float longitude = float.Parse(rows[3]);
+                float radius = float.Parse(rows[4]);
+                string tips = rows[5];
+                if (!genreQuestion.ContainsKey(genre))
+                {
+                    genreQuestion[genre] =  new List<Question>();
+                }
+                genreQuestion[genre].Add(new Question(name, latitude, longitude, radius, tips));
+            }
+            catch (Exception e)
+            {
+                Debug.LogError(e.Message);
+            }
+        }
+    }
+
+    public List<Question> GetProblemByGenre(Genre genre)
+    {
+        if (genre == Genre.All || genre == Genre.Random)
+        {
+            return GetAllList();
+        }
+        else if (genreQuestion.ContainsKey(genre.GenreKey))
+        {
+            return genreQuestion[genre.GenreKey];
+        }
+        else
+        {
+            return new List<Question>();
+        }
+    }
+
+    private List<Question> GetAllList()
+    {
+        List<Question> result = new List<Question>();
+        foreach (string genreKey in Genre.EnableKeySet())
+        {
+            List<Question> questinList = genreQuestion[genreKey];
+            result.AddRange(questinList);
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// ローカルにあるマスターファイルで初期化する
+    /// </summary>
+    /// <returns></returns>
+    public IEnumerator InitializeByLocalAssetBundleMaster(IObserver<int> observer)
+    {
+
+#if UNITY_ANDROID || UNITY_EDITOR
+        List<string> csvList = new List<string>();
+        string path =
+            Path.Combine(assetBundleDirectory, "Android", "master_asset_bundle");
+        using (var request = UnityWebRequestAssetBundle.GetAssetBundle(path))
+        {
+            yield return request.SendWebRequest();
+            while (true)
+            {
+                if (request.isHttpError || request.isNetworkError)
+                {
+                    Debug.LogError("InitializeByLocalAssetBundleMaster:" + request.error
+                        + ",isHttpError:" + request.isHttpError + ",isNetworkError:" + request.isNetworkError);
+                    yield break;
+                }
+                if (request.isDone)
+                {
+                    var handler = request.downloadHandler as DownloadHandlerAssetBundle;
+                    var assetBundle = handler.assetBundle;
+                    foreach (string filename in new List<string>() { MasterGenreFileName, MasterQuestionFileName })
+                    {
+                        var textAsset = assetBundle.LoadAsset<TextAsset>(filename);
+                        csvList.Add(textAsset.text);
+                    }
+                    assetBundle.Unload(true);
+                    break;
+                }
+            }
+        }
+        Genre.InitializeMaster(csvList[0]);
+        this.InitializeMaster(csvList[1]);
+        
+#elif UNITY_WEBGL
+        yield return null;
+        Genre.InitializeMaster("key,name\r\nISLAND,島\r\nPENINSULA,半島・岬\r\nMOUNTAIN,山\r\nLAKE,湖\r\nTOURIST_SPOT,観光地\r\nWORLD_HERITAGE,世界遺産");
+        this.InitializeMaster("genre,name,latitude,longitude,radius,tips\r\nPENINSULA,知床半島,44.0321705,145.0773005,50,\r\nPENINSULA,根室半島,43.3484368,145.6164821,50,\r\nPENINSULA,積丹半島,43.2336471,140.4374576,50,\r\nPENINSULA,下北半島,41.1937331,141.0796344,50,\r\nPENINSULA,津軽半島,41.000931,140.4980567,50,\r\nPENINSULA,男鹿半島,39.9256758,139.794199,50,\r\nPENINSULA,牡鹿半島,38.3739139,141.472144,50,\r\nPENINSULA,房総半島,35.2125659,140.1372036,50,\r\nPENINSULA,三浦半島,35.2468102,139.6476479,50,\r\nPENINSULA,能登半島,37.1339427,136.8790886,60,\r\nPENINSULA,伊豆半島,34.9620345,138.982726,60,\r\nPENINSULA,渥美半島,34.6680605,137.263548,50,\r\nPENINSULA,知多半島,34.8573777,136.8930756,50,\r\nPENINSULA,紀伊半島,34.0536646,135.7038319,80,\r\nPENINSULA,丹後半島,35.6643632,135.1464447,50,\r\nPENINSULA,佐田岬半島,33.4322314,132.2175782,50,\r\nPENINSULA,国東半島,33.5270473,131.5887151,50,\r\nPENINSULA,島原半島,32.7365043,130.2634962,50,\r\nPENINSULA,薩摩半島,31.5180818,130.4211798,50,\r\nPENINSULA,大隅半島,31.282463,130.9730155,50,\r\nPENINSULA,宗谷岬,45.5228586,141.9365092,40,\r\nPENINSULA,襟裳岬,41.9251769,143.2436999,40,\r\nPENINSULA,白神岬,41.3982585,140.1994074,40,\r\nPENINSULA,大間崎,41.5462293,140.9121403,40,\r\nPENINSULA,竜飛崎,41.2589327,140.3402088,40,\r\nPENINSULA,トドヶ崎,39.5476958,142.0699872,40,\r\nPENINSULA,犬吠埼,35.707696,140.86616,40,\r\nPENINSULA,潮岬,33.437293,135.7518045,40,\r\nPENINSULA,神崎鼻,33.217538,129.5514702,40,\r\nPENINSULA,佐多岬,30.9958804,130.6576284,40,\r\nISLAND,礼文島,45.3736336,141.0149621,30,\r\nISLAND,利尻島,45.180578,141.2386887,30,\r\nISLAND,択捉島,45.055802,147.896049,120,\r\nISLAND,国後島,44.1420289,145.879429,80,\r\nISLAND,色丹島,43.7921527,146.7484836,30,\r\nISLAND,歯舞群島,43.507074,146.1403858,30,\r\nISLAND,奥尻島,42.1536705,139.4687042,30,\r\nISLAND,佐渡島,38.0296504,138.381842,40,\r\nISLAND,伊豆大島,34.7341009,139.3899473,30,\r\nISLAND,三宅島,34.0841776,139.517473,30,\r\nISLAND,八丈島,33.109464,139.7943207,30,\r\nISLAND,父島・母島,26.8503214,142.1753305,60,\r\nISLAND,淡路島,34.3917079,134.8223712,30,\r\nISLAND,小豆島,34.5078131,134.2608337,30,\r\nISLAND,周防大島,33.8990459,132.3258661,30,\r\nISLAND,隠岐,36.2501763,133.2722195,40,\r\nISLAND,壱岐,33.7860337,129.7025151,30,\r\nISLAND,対馬,34.42124,129.3142345,40,\r\nISLAND,五島列島,32.8756018,128.9757642,50,\r\nISLAND,天草諸島,32.4480042,130.2022878,40,\r\nISLAND,甑島列島,31.7640548,129.7940327,30,\r\nISLAND,屋久島,30.3364305,130.5242714,30,\r\nISLAND,種子島,30.5751027,130.9784163,40,\r\nISLAND,奄美大島,28.3454913,129.4792906,50,\r\nISLAND,徳之島,27.7766769,128.9456644,30,\r\nISLAND,沖永良部島,27.3937809,128.6282899,30,\r\nISLAND,宮古島,24.7785891,125.3268956,30,\r\nISLAND,石垣島,24.4646516,124.22607,30,\r\nISLAND,西表島,24.3344908,123.8226988,30,\r\nISLAND,与那国島,24.4553694,122.9796984,30,\r\nMOUNTAIN,大雪山,43.516,142.952,50,\r\nMOUNTAIN,八甲田山,40.664,140.909,50,\r\nMOUNTAIN,鳥海山,39.055,140.031,50,\r\nMOUNTAIN,岩手山,39.852619,140.9835079,50,\r\nMOUNTAIN,月山,38.5494526,140.0269212,50,\r\nMOUNTAIN,磐梯山,37.600939,140.0721123,50,\r\nMOUNTAIN,弥彦山,37.7046,138.7919765,50,\r\nMOUNTAIN,谷川岳,36.836,138.929,50,\r\nMOUNTAIN,男体山,36.7655478,139.4906659,50,\r\nMOUNTAIN,筑波山,36.2259287,140.1033367,50,\r\nMOUNTAIN,浅間山,36.408,138.516,50,\r\nMOUNTAIN,富士山,35.363,138.7304,50,\r\nMOUNTAIN,身延山,35.3975964,138.4166459,50,\r\nMOUNTAIN,剱岳・立山,36.576,137.619,50,\r\nMOUNTAIN,槍ヶ岳・穂高岳,36.3171037,137.6499522,50,\r\nMOUNTAIN,八ヶ岳,36.019,138.354,50,\r\nMOUNTAIN,木曽御嶽山,35.894,137.476,50,\r\nMOUNTAIN,北岳,35.6745342,138.2363635,50,日本で2番目に高い山\r\nMOUNTAIN,白山,36.091,136.462,50,日本三霊山の一つ\r\nMOUNTAIN,伊吹山,35.245,136.243,50,\r\nMOUNTAIN,比叡山,35.0657469,135.8312527,50,\r\nMOUNTAIN,六甲山,34.7774,135.2593586,50,\r\nMOUNTAIN,伯耆大山,35.221,133.3256,50,\r\nMOUNTAIN,石鎚山,33.7683042,133.1141291,50,\r\nMOUNTAIN,英彦山,33.4764,130.9085451,50,\r\nMOUNTAIN,雲仙普賢岳,32.7804553,130.2659724,50,\r\nMOUNTAIN,由布岳,33.2824,131.3899873,50,\r\nMOUNTAIN,阿蘇山,32.525,131.0623,50,\r\nMOUNTAIN,開聞岳,31.1801463,130.5280537,50,\r\nMOUNTAIN,桜島,31.5836,130.6521842,50,\r\nLAKE,クッチャロ湖,45.1397753,142.321771,50,\r\nLAKE,サロマ湖,44.131217,143.802477,50,面積３位\r\nLAKE,網走湖・能取湖,44.0089412,144.1711107,50,\r\nLAKE,屈斜路湖,43.603842,144.325406,50,面積６位\r\nLAKE,摩周湖,43.587228,144.523762,50,透明度日本最高・世界２位\r\nLAKE,阿寒湖,43.457259,144.104015,50,特別天然記念物のマリモが生息\r\nLAKE,風蓮湖,43.3071102,145.3424781,50,\r\nLAKE,厚岸湖,43.0490482,144.8941652,50,\r\nLAKE,支笏湖,42.757024,141.324571,50,面積８位、深度２位、透明度３位\r\nLAKE,洞爺湖,42.625499,140.843314,50,面積９位、日本百景\r\nLAKE,倶多楽湖,42.5002998,141.1816963,50,透明度２位\r\nLAKE,宇曽利山湖,41.3179666,141.0875986,50,\r\nLAKE,十三湖,41.0295749,140.3586319,50,\r\nLAKE,小川原湖,40.776367,141.3309845,50,\r\nLAKE,十和田湖,40.464869,140.877243,50,深度３位、特別名勝\r\nLAKE,田沢湖,39.716853,140.654486,50,最大深度、日本百景\r\nLAKE,八郎潟,39.9204108,140.0156669,50,\r\nLAKE,琵琶湖,35.2556871,136.0588749,50,最大面積、最大貯水量\r\nLAKE,五色沼湖沼群,37.672044,140.0907191,50,\r\nLAKE,猪苗代湖,37.49684,140.062032,50,面積４位\r\nLAKE,霞ヶ浦,36.049069,140.379158,50,面積２位\r\nLAKE,中禅寺湖,36.732904,139.482199,50,日本一標高の高い湖、日本百景\r\nLAKE,榛名湖,36.4746793,138.8648533,50,\r\nLAKE,芦ノ湖,35.209567,139.003463,50,箱根駅伝の往路ゴール・復路スタート地点\r\nLAKE,富士五湖,35.487973,138.807187,50,本栖湖・精進湖・西湖・河口湖・山中湖の総称、名勝\r\nLAKE,浜名湖,34.73315,137.576666,50,面積１０位\r\nLAKE,諏訪湖,36.049262,138.085315,50,御神渡り\r\nLAKE,三方五湖,35.572222,135.884522,50,三方湖・水月湖・菅湖・久々子湖・日向湖の総称、名勝\r\nLAKE,宍道湖・中海,35.4493099,132.980896,50,\r\nLAKE,池田湖,31.2360307,130.5616666,50,\r\nTOURIST_SPOT,函館,41.768696,140.72906,50,（北海道）函館山、五稜郭、温泉\r\nTOURIST_SPOT,登別,42.494553,141.144034,50,（北海道)登別温泉、カルルス温泉\r\nTOURIST_SPOT,弘前,40.603063,140.464054,50,（青森県）弘前城\r\nTOURIST_SPOT,恐山,41.308333,141.088056,50,（青森県）恐山菩提寺\r\nTOURIST_SPOT,角館武家屋敷,39.589987,140.571415,50,（秋田県）\r\nTOURIST_SPOT,小岩井農場,39.7509176,141.0167049,50,（岩手県）\r\nTOURIST_SPOT,松島,38.380191,141.067293,50,（宮城県）日本三景、特別名勝\r\nTOURIST_SPOT,銀山温泉,38.5700994,140.5306373,50,（山形県）\r\nTOURIST_SPOT,会津若松,37.489983,139.927749,50,（福島県）若松城、白虎隊\r\nTOURIST_SPOT,尾瀬,36.936413,139.239852,50,（福島県-新潟県-群馬県）特別天然記念物、日本百景\r\nTOURIST_SPOT,偕楽園,36.372626,140.452177,50,（茨城県）日本三名園\r\nTOURIST_SPOT,日光,36.737993,139.502069,50,（栃木県）日光東照宮、華厳の滝\r\nTOURIST_SPOT,鬼怒川温泉,36.834225,139.719036,50,（栃木県）鬼怒川温泉\r\nTOURIST_SPOT,草津,36.620718,138.596095,50,（群馬県）草津温泉\r\nTOURIST_SPOT,伊香保温泉,36.498265,138.930388,50,（群馬県）\r\nTOURIST_SPOT,長瀞,36.114768,139.109611,50,（埼玉県）名勝\r\nTOURIST_SPOT,成田,35.786095,140.318286,50,（千葉県）成田山新勝寺\r\nTOURIST_SPOT,浅草,35.714765,139.796655,50,（東京都）浅草寺\r\nTOURIST_SPOT,鎌倉,35.319213,139.546673,50,（神奈川県）鎌倉大仏、由比ヶ浜\r\nTOURIST_SPOT,越後湯沢,36.934052,138.817334,50,（新潟県）越後湯沢温泉、苗場スキー場\r\nTOURIST_SPOT,昇仙峡,35.745274,138.567361,50,（山梨県）特別名勝\r\nTOURIST_SPOT,上高地,36.25132,137.653235,50,（長野県）特別名勝、特別天然記念物\r\nTOURIST_SPOT,軽井沢,36.348393,138.59703,50,（長野県）軽井沢高原\r\nTOURIST_SPOT,黒部峡谷,36.871543,137.447989,50,（富山県）特別名勝、特別天然記念物、黒部ダム\r\nTOURIST_SPOT,和倉温泉,37.088558,136.916634,50,(石川県）\r\nTOURIST_SPOT,一乗谷朝倉氏遺跡,35.999463,136.295932,50,（福井県）特別史跡、特別名勝\r\nTOURIST_SPOT,東尋坊,36.237658,136.125524,50,（福井県）名勝\r\nTOURIST_SPOT,熱海,35.09639,139.071784,50,（静岡県）温泉\r\nTOURIST_SPOT,伊豆,34.976617,138.94655,50,（静岡県）修善寺、修善寺温泉\r\nTOURIST_SPOT,下呂温泉,35.808848,137.243561,50,（岐阜県）\r\nTOURIST_SPOT,犬山,35.378647,136.94448,50,（愛知県）犬山城\r\nTOURIST_SPOT,伊勢,34.487486,136.709264,50,（三重県）伊勢神宮、二見興玉神社\r\nTOURIST_SPOT,彦根,35.274391,136.259683,50,（滋賀県）彦根城、琵琶湖\r\nTOURIST_SPOT,天橋立,35.569802,135.19182,50,（京都府）日本三景\r\nTOURIST_SPOT,大阪城,34.687333,135.525956,50,（大阪府）特別史跡\r\nTOURIST_SPOT,南紀白浜,33.67814,135.34819,50,（和歌山県）南紀白浜温泉、円月島・千畳敷・三段壁\r\nTOURIST_SPOT,高松塚古墳,34.462326,135.806172,50,(奈良県）国宝\r\nTOURIST_SPOT,有馬温泉,34.797775,135.247654,50,（兵庫県）\r\nTOURIST_SPOT,城崎温泉,35.625228,134.810676,50,（兵庫県）\r\nTOURIST_SPOT,鳥取砂丘,35.540723,134.229071,50,（鳥取県）天然記念物\r\nTOURIST_SPOT,出雲大社,35.402035,132.685456,50,（島根県）\r\nTOURIST_SPOT,倉敷美観地区,34.5951139,133.7722168,50,（岡山県）\r\nTOURIST_SPOT,尾道,34.4089,133.204914,50,（広島県）尾道水道、千光寺\r\nTOURIST_SPOT,下関,33.95753,130.941176,50,(山口県）国宝功山寺、巌流島\r\nTOURIST_SPOT,鳴門,34.172603,134.608866,50,（徳島県）鳴門海峡\r\nTOURIST_SPOT,栗林公園,34.329384,134.044535,50,(香川県）特別名勝\r\nTOURIST_SPOT,道後温泉,33.852042,132.786407,50,（愛媛県）日本三古湯\r\nTOURIST_SPOT,桂浜,33.497137,133.574921,50,（高知県）坂本龍馬像\r\nTOURIST_SPOT,太宰府,33.512773,130.523969,50,（福岡県）太宰府天満宮\r\nTOURIST_SPOT,虹の松原,33.446075,129.994015,50,（佐賀県）日本三大松原\r\nTOURIST_SPOT,佐世保,33.180436,129.7158,50,（長崎県）ハウステンボス、九十九島\r\nTOURIST_SPOT,黒川温泉,33.078069,131.141656,50,(熊本県）\r\nTOURIST_SPOT,別府,33.277456,131.505989,50,(大分県）別府温泉、別府の地獄\r\nTOURIST_SPOT,由布院温泉,33.284099,131.351087,50,(大分県）\r\nTOURIST_SPOT,高千穂峡,32.711718,131.307856,50,（宮崎県）名勝、天然記念物\r\nTOURIST_SPOT,指宿,31.252792,130.63305,50,（鹿児島県）指宿温泉\r\nTOURIST_SPOT,やんばる国立公園,26.7258035,128.2278032,50,（沖縄県）川平湾\r\nWORLD_HERITAGE,法隆寺,34.614077,135.735683,50,1993年登録 文化遺産 法隆寺地域の仏教建造物\r\nWORLD_HERITAGE,姫路城,34.839449,134.693905,50,1993年登録 文化遺産\r\nWORLD_HERITAGE,屋久島,30.344594,130.512714,50,1993年登録 自然遺産\r\nWORLD_HERITAGE,白神山地,40.4551372,140.1618745,50,1993年登録 自然遺産\r\nWORLD_HERITAGE,金閣寺,35.03937,135.729243,50,1994年登録 文化遺産 古都京都の文化財 \r\nWORLD_HERITAGE,白川郷,36.258045,136.906734,50,1995年登録 文化遺産 白川郷・五箇山の合掌造り集落 \r\nWORLD_HERITAGE,原爆ドーム,34.39548,132.453592,50,1996年登録 文化遺産\r\nWORLD_HERITAGE,厳島神社,34.297309,132.318128,50,1996年登録 文化遺産\r\nWORLD_HERITAGE,東大寺,34.688985,135.839816,50,1998年登録 文化遺産古都奈良の文化財 \r\nWORLD_HERITAGE,日光東照宮,36.757804,139.599358,50,1999年登録 文化遺産 日光の社寺\r\nWORLD_HERITAGE,首里城,26.217014,127.719521,50,2000年登録 文化遺産 琉球王国のグスク及び関連遺産群\r\nWORLD_HERITAGE,熊野古道,33.8651903,135.7606631,100,2004年登録 文化遺産 紀伊山地の霊場と参詣道\r\nWORLD_HERITAGE,知床,44.199656,145.239675,50,2005年登録 自然遺産\r\nWORLD_HERITAGE,石見銀山,35.105335,132.4394033,50,2007年登録 文化遺産 石見銀山遺跡とその文化的景観\r\nWORLD_HERITAGE,平泉,39.001736,141.102596,50,2011年登録 文化遺産 平泉－仏国土（浄土）を表す建築・庭園及び考古学的遺跡群－\r\nWORLD_HERITAGE,小笠原諸島,27.0666723,142.2124773,300,2011年登録 自然遺産\r\nWORLD_HERITAGE,富士山,35.360626,138.727363,50,2013年登録 文化遺産 富士山－信仰の対象と芸術の源泉－\r\nWORLD_HERITAGE,富岡製糸場,36.255121,138.887428,50,2014年登録 文化遺産 富岡製糸場と絹産業遺産群\r\nWORLD_HERITAGE,軍艦島,32.627633,129.738526,50,2015年登録 文化遺産 明治日本の産業革命遺産 製鉄・製鋼、造船、石炭産業\r\nWORLD_HERITAGE,国立西洋美術館,35.715387,139.775814,50,2016年登録 文化遺産 ル・コルビュジエの建築作品－近代建築運動への顕著な貢献－\r\nWORLD_HERITAGE,宗像大社,33.831074,130.514318,50,2017年登録 文化遺産「神宿る島」宗像・沖ノ島と関連遺産群\r\nWORLD_HERITAGE,大浦天主堂,32.734154,129.870137,50,2018年登録 文化遺産 長崎と天草地方の潜伏キリシタン関連遺産\r\nWORLD_HERITAGE,古市古墳群,34.560996,135.613702,50,2019年登録 文化遺産 百舌鳥・古市古墳群");
+#endif
+        observer.OnCompleted();
+    }
+
+    /// <summary>
+    /// ダウンロードしたアセットバンドルで初期化する
+    /// </summary>
+    /// <param name="observer"></param>
+    /// <returns></returns>
+    public IEnumerator InitializeByDownloadedAssetBundle(IObserver<int> observer)
+    {
+        IEnumerator coroutine = downloadAssetBundle(AssetBundleUrl);
+        yield return CoroutineHandler.StartStaticCoroutine(coroutine);
+        var masterAssetBundle = (AssetBundle)coroutine.Current;
+        if (masterAssetBundle == null)
+        {
+            observer.OnError(new Exception("Fail Download MasterAssetBundle"));
+            yield break;
+        }
+        Genre.InitializeMaster(getTextFromAssetBundle(masterAssetBundle, MasterGenreFileName));
+        this.InitializeMaster(getTextFromAssetBundle(masterAssetBundle, MasterQuestionFileName));
+        masterAssetBundle.Unload(true);
+
+        observer.OnCompleted();
+    }
+
+    /// <summary>
+    /// assetBundle内の外部ファイルを読み込む
+    /// </summary>
+    /// <param name="assetBundle"></param>
+    /// <param name="fileName"></param>
+    /// <returns></returns>
+    private string getTextFromAssetBundle(AssetBundle assetBundle, string fileName)
+    {
+        TextAsset textAsset = assetBundle.LoadAsset<TextAsset>(fileName);
+        return textAsset.text;
+    }
+
+    /// <summary>
+    /// アセットバンドルをダウンロードする
+    /// </summary>
+    /// <param name="url"></param>
+    /// <returns>成功時はダウンロードしたアセットバンドル,失敗時はnullを返す</returns>
+    private IEnumerator downloadAssetBundle(string url)
+    {
+        using (var request = UnityWebRequestAssetBundle.GetAssetBundle(url))
+        {
+            yield return request.SendWebRequest();
+            while (true)
+            {
+                if (request.isHttpError || request.isNetworkError)
+                {
+                    Debug.LogError("DownloadAssetBundle:" + request.error
+                        + ",isHttpError:" + request.isHttpError +",isNetworkError:" + request.isNetworkError);
+                    yield return null;
+                }
+                if (request.isDone)
+                {
+                    var handler = request.downloadHandler as DownloadHandlerAssetBundle;
+                    yield return handler.assetBundle;
+                    break;
+                }
+            }
+        }
+    }
+}
